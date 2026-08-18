@@ -4,16 +4,17 @@ Bootstrap script for [Addons-Fetcher](https://github.com/Addons-SoD/Addons-Fetch
 
 It downloads the latest `Addons-Fetcher.cmd` from the
 [Addons-SoD/Addons-Fetcher](https://github.com/Addons-SoD/Addons-Fetcher)
-repository into the current directory and runs it, so a completely empty addon
-folder can be populated with a single double-click.
+repository into the current directory and runs it, so a completely empty
+`Interface` folder can be populated with a single double-click.
 
 ## Usage
 
-1. Copy `Addons-init.cmd` into your target addon directory:
-   `<WoW install dir>\_classic_era_\Interface\AddOns`
+1. Copy `Addons-init.cmd` into your `Interface` folder:
+   `<WoW install dir>\_classic_era_\Interface`
 2. Run it.
 3. The fetcher is downloaded next to this script and started automatically;
-   all addons are deployed into the same directory.
+   all addons are deployed into the `Addons` subfolder
+   (`Interface\Addons` = the game's addon directory).
 
 Download sources are tried in this order:
 
