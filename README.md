@@ -22,6 +22,19 @@ Download sources are tried in this order:
 2. `github.com/.../raw/...` redirect
 3. `cdn.jsdelivr.net` (jsDelivr CDN mirror)
 
+## Smart downloads (v2)
+
+Slow or broken fetcher downloads are usually caused by a bad direct route
+to GitHub (the DNS-provided IP may be unreachable). v2 fixes this the same
+way the fetcher does:
+
+- Uses `curl.exe` with **fail-fast** behaviour (10s connect timeout +
+  built-in retries) instead of one hanging 120s request.
+- **Channel probing**: if a Windows system proxy is present it is used
+  automatically; otherwise several `raw.githubusercontent.com` IPs (system
+  DNS + AliDNS) are probed in parallel and the fastest reachable one is
+  used (`--resolve`). A dead default DNS node no longer blocks the download.
+
 ## Requirements
 
 - Windows PowerShell 5.1+
