@@ -6,7 +6,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v1.0.1
+#  Addons-init  v1.0.2
 #  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
 #  Addons-SoD/Addons-Fetcher repository into the current directory and
 #  runs it. The fetcher then deploys all addons into this directory.
@@ -18,12 +18,14 @@ exit /b %ERRORLEVEL%
 #  Version check: before fetching, the script compares its own version
 #  ($ScriptVersion) with the latest one in the Addons-SoD/Addons-init
 #  repository and shows a magenta notice when a newer version is available.
+#  The notice points to the matching GitHub Release asset (a browser click
+#  downloads the file directly, no copy-paste needed).
 # ============================================================================
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptVersion = '1.0.1'
+$ScriptVersion = '1.0.2'
 $ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
 $Owner         = 'Addons-SoD'
 $Repo          = 'Addons-Fetcher'
@@ -31,7 +33,6 @@ $Branch        = 'main'
 $FetcherName   = 'Addons-Fetcher.cmd'
 $RawHost       = 'raw.githubusercontent.com'
 $InitRepo      = 'Addons-init'
-$InitDlUrl     = 'https://github.com/Addons-SoD/Addons-init/raw/main/Addons-init.cmd'
 $VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init/contents/Addons-init.cmd'
 
 $rawUrl = 'https://raw.githubusercontent.com/' + $Owner + '/' + $Repo + '/' + $Branch + '/' + $FetcherName
@@ -262,14 +263,16 @@ Write-Host '  Addons-init: fetching Addons-Fetcher.cmd' -ForegroundColor Cyan
 Write-Host $HLine -ForegroundColor Cyan
 
 # Version check: a newer Addons-init on the repository gets a magenta
-# notice with a clickable download URL (Ctrl+Click in Windows Terminal).
+# notice with a direct-download URL (GitHub Release asset - Ctrl+Click in
+# Windows Terminal downloads the file straight away).
 $remoteVer = Get-RemoteVersion
 if($remoteVer -and $remoteVer -ne $ScriptVersion){
+  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/download/v' + $remoteVer + '/Addons-init.cmd'
   Write-Host ''
   Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
   Write-Host '  Download the new version here:' -ForegroundColor Magenta
-  Write-Host ('  ' + $InitDlUrl) -ForegroundColor Magenta
+  Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
   Write-Host ''
 }
 
