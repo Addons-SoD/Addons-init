@@ -1,6 +1,6 @@
 # Deployment output - created next to the script when it is run from a clone
 # inside the Interface folder.
-Addons/
+AddOns/
 
 # Local dev copy of the fetcher - the authoritative copy lives in the
 # Addons-SoD/Addons-Fetcher repository and is downloaded by Addons-init.cmd.

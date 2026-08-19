@@ -13,8 +13,8 @@ repository into the current directory and runs it, so a completely empty
    `<WoW install dir>\_classic_era_\Interface`
 2. Run it.
 3. The fetcher is downloaded next to this script and started automatically;
-   all addons are deployed into the `Addons` subfolder
-   (`Interface\Addons` = the game's addon directory).
+   all addons are deployed into the `AddOns` subfolder
+   (`Interface\AddOns` = the game's addon directory).
 
 Download sources are tried in this order:
 
