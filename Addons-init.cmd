@@ -6,7 +6,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v1.0.2
+#  Addons-init  v1.0.3
 #  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
 #  Addons-SoD/Addons-Fetcher repository into the current directory and
 #  runs it. The fetcher then deploys all addons into this directory.
@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptVersion = '1.0.2'
+$ScriptVersion = '1.0.3'
 $ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
 $Owner         = 'Addons-SoD'
 $Repo          = 'Addons-Fetcher'
@@ -264,17 +264,16 @@ Write-Host $HLine -ForegroundColor Cyan
 
 # Version check: a newer Addons-init on the repository gets a magenta
 # notice with a direct-download URL (GitHub Release asset - Ctrl+Click in
-# Windows Terminal downloads the file straight away). The URL stays within
-# 80 columns via the 'latest' alias and the short asset name 'init.cmd'.
+# Windows Terminal downloads the file straight away). The fixed 'v1' tag and
+# the full asset name 'Addons-init.cmd' keep the URL within 80 columns.
 $remoteVer = Get-RemoteVersion
 if($remoteVer -and $remoteVer -ne $ScriptVersion){
-  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/latest/download/init.cmd'
+  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/download/v1/Addons-init.cmd'
   Write-Host ''
   Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
   Write-Host '  Download it now: hold Ctrl and click the link below' -ForegroundColor Magenta
   Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
-  Write-Host '  (saved as init.cmd - rename it to Addons-init.cmd)' -ForegroundColor Magenta
   Write-Host ''
 }
 
