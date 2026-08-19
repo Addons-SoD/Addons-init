@@ -115,6 +115,23 @@ function Restore-ConsoleMode{
   }catch{}
 }
 
+# True when the parent directory looks like the game folder: WowClassic.exe
+# exists next to it AND its Authenticode signature comes from Blizzard.
+function Test-GameFolder{
+  try{
+    $parent = Split-Path -Parent $ScriptDir
+    $exe = Join-Path $parent 'WowClassic.exe'
+    if(Test-Path -LiteralPath $exe){
+      $sig = Get-AuthenticodeSignature -LiteralPath $exe
+      if($sig.Status -eq 'Valid' -and $null -ne $sig.SignerCertificate){
+        $who = $sig.SignerCertificate.Subject + ' ' + $sig.SignerCertificate.Issuer
+        if($who -match 'Blizzard'){ return $true }
+      }
+    }
+  }catch{}
+  return $false
+}
+
 function Get-SystemProxy{
   try{
     $ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
@@ -202,6 +219,19 @@ Write-Host ''
 Write-Host $HLine -ForegroundColor Cyan
 Write-Host '  Addons-init: fetching Addons-Fetcher.cmd' -ForegroundColor Cyan
 Write-Host $HLine -ForegroundColor Cyan
+
+# Warn (in English) when the script does not run from the game's Interface
+# folder: the addons will be deployed next to this script instead.
+if(-not (Test-GameFolder)){
+  Write-Host ''
+  Write-Host '  WARNING: WowClassic.exe was not found in the parent folder,' -ForegroundColor Yellow
+  Write-Host '  or its signature is not from Blizzard. You are probably' -ForegroundColor Yellow
+  Write-Host '  NOT running this script from the game''s Interface folder.' -ForegroundColor Yellow
+  Write-Host '  The addons will be downloaded next to this script. After' -ForegroundColor Yellow
+  Write-Host '  the download finishes, please manually copy the ''Addons''' -ForegroundColor Yellow
+  Write-Host '  folder into your game''s Interface directory.' -ForegroundColor Yellow
+  Write-Host ''
+}
 
 # ---- 1) pick the fastest channel (proxy vs direct multi-IP) ----
 $sysProxy = Get-SystemProxy
