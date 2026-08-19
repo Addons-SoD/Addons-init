@@ -271,7 +271,8 @@ if($remoteVer -and $remoteVer -ne $ScriptVersion){
   Write-Host ''
   Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
-  Write-Host '  Download the new version here:' -ForegroundColor Magenta
+  Write-Host '  Download it now: hold Ctrl and click the link below' -ForegroundColor Magenta
+  Write-Host '  (or copy it into your browser):' -ForegroundColor Magenta
   Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
   Write-Host ''
 }
