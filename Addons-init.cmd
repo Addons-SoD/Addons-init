@@ -6,23 +6,15 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v2
+#  Addons-init  v3
 #  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
 #  Addons-SoD/Addons-Fetcher repository into the current directory and
 #  runs it. The fetcher then deploys all addons into this directory.
-#  v2 changes (fixes slow/broken downloads of the fetcher itself):
-#  * Uses curl.exe instead of Invoke-WebRequest and applies the same smart
-#    channel idea as the fetcher:
-#      - the Windows system proxy is detected and used automatically when
-#        it is present (and faster),
-#      - otherwise several raw.githubusercontent.com IPs (system DNS +
-#        AliDNS 223.5.5.5) are probed in parallel and the fastest one is
-#        used with --resolve.
-#  * Fail-fast behaviour: 10s connect timeout + built-in retries instead of
-#    one hanging 120s request, so a dead route is abandoned quickly and the
-#    next source is tried.
-#  * The target file is re-downloaded fresh (stale local copies are removed)
-#    and validated by size + content marker.
+#  v3 changes:
+#  * Console output is kept within 80 columns (long lines are truncated).
+#  * QuickEdit is disabled and the cursor is hidden while the script runs,
+#    so clicking the console window can no longer pause the script; the
+#    console is restored before exiting.
 #  Download sources are tried in order:
 #    1. raw.githubusercontent.com  (through the fastest probed channel)
 #    2. github.com/.../raw/... redirect (proxy if available)
@@ -47,6 +39,75 @@ $work   = Join-Path $env:TEMP ('AddonInit_' + [Guid]::NewGuid().ToString('N').Su
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 
 # ------------------------------- helpers ------------------------------------
+# Console width is kept at 80 columns (best compatibility); long lines are
+# truncated with '...'.
+$ConWidth = 80
+$HLine = '=' * $ConWidth
+
+function Truncate-Text([string]$s,[int]$maxLen){
+  if($s.Length -gt $maxLen){
+    if($maxLen -le 3){ return $s.Substring(0, [Math]::Min($maxLen, $s.Length)) }
+    return $s.Substring(0, $maxLen - 3) + '...'
+  }
+  return $s
+}
+
+# Disable QuickEdit (clicking the console pauses the script in select mode)
+# and hide the cursor while running.
+function Init-ConsoleMode{
+  try{
+    if(-not ('AddonsConsoleHelper' -as [type])){
+      $src = @'
+using System;
+using System.Runtime.InteropServices;
+public static class AddonsConsoleHelper {
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern IntPtr GetStdHandle(int nStdHandle);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool GetConsoleMode(IntPtr hConsoleHandle, out uint lpMode);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool SetConsoleMode(IntPtr hConsoleHandle, uint dwMode);
+  [DllImport("kernel32.dll", SetLastError = true)]
+  public static extern bool SetConsoleCursorInfo(IntPtr hConsoleOutput, ref CONSOLE_CURSOR_INFO lpConsoleCursorInfo);
+  [StructLayout(LayoutKind.Sequential)]
+  public struct CONSOLE_CURSOR_INFO { public uint dwSize; public bool bVisible; }
+}
+'@
+      Add-Type -TypeDefinition $src
+    }
+    $in  = [AddonsConsoleHelper]::GetStdHandle(-10)
+    $out = [AddonsConsoleHelper]::GetStdHandle(-11)
+    $mode = [uint32]0
+    if([AddonsConsoleHelper]::GetConsoleMode($in, [ref]$mode)){
+      $mode = $mode -band (-bnot 0x0040) -band (-bnot 0x0020)
+      [void][AddonsConsoleHelper]::SetConsoleMode($in, $mode)
+    }
+    $cci = New-Object AddonsConsoleHelper+CONSOLE_CURSOR_INFO
+    $cci.dwSize = 1
+    $cci.bVisible = $false
+    [void][AddonsConsoleHelper]::SetConsoleCursorInfo($out, [ref]$cci)
+  }catch{}
+}
+
+# Restore QuickEdit + the cursor before exiting (also before Read-Host).
+function Restore-ConsoleMode{
+  try{
+    if(('AddonsConsoleHelper' -as [type])){
+      $in  = [AddonsConsoleHelper]::GetStdHandle(-10)
+      $out = [AddonsConsoleHelper]::GetStdHandle(-11)
+      $mode = [uint32]0
+      if([AddonsConsoleHelper]::GetConsoleMode($in, [ref]$mode)){
+        $mode = $mode -bor 0x0040 -bor 0x0020
+        [void][AddonsConsoleHelper]::SetConsoleMode($in, $mode)
+      }
+      $cci = New-Object AddonsConsoleHelper+CONSOLE_CURSOR_INFO
+      $cci.dwSize = 20
+      $cci.bVisible = $true
+      [void][AddonsConsoleHelper]::SetConsoleCursorInfo($out, [ref]$cci)
+    }
+  }catch{}
+}
+
 function Get-SystemProxy{
   try{
     $ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
@@ -114,20 +175,21 @@ function Probe-Channels($candidates){
       }
     }catch{}
     if($spd -gt 0){
-      Write-Host ('    ' + $pr.Ch.Id.PadRight(7) + ' ' + $pr.Ch.Label.PadRight(26) + ('{0,9:N0}' -f $spd) + ' B/s') -ForegroundColor Gray
+      Write-Host (Truncate-Text ('    ' + $pr.Ch.Id.PadRight(7) + ' ' + $pr.Ch.Label.PadRight(22) + ('{0,9:N0}' -f $spd) + ' B/s') $ConWidth) -ForegroundColor Gray
       if($null -eq $best -or $spd -gt $best.Speed){ $best = @{ Id=$pr.Ch.Id; Speed=$spd; Args=$pr.Ch.Args; Label=$pr.Ch.Label } }
     } else {
-      Write-Host ('    ' + $pr.Ch.Id.PadRight(7) + ' ' + $pr.Ch.Label.PadRight(26) + '    FAILED') -ForegroundColor DarkGray
+      Write-Host (Truncate-Text ('    ' + $pr.Ch.Id.PadRight(7) + ' ' + $pr.Ch.Label.PadRight(22) + '    FAILED') $ConWidth) -ForegroundColor DarkGray
     }
   }
   return $best
 }
 
 # ------------------------------ main flow -----------------------------------
+Init-ConsoleMode
 Write-Host ''
-Write-Host '================================================================' -ForegroundColor Cyan
+Write-Host $HLine -ForegroundColor Cyan
 Write-Host '  Addons-init: fetching Addons-Fetcher.cmd' -ForegroundColor Cyan
-Write-Host '================================================================' -ForegroundColor Cyan
+Write-Host $HLine -ForegroundColor Cyan
 
 # ---- 1) pick the fastest channel (proxy vs direct multi-IP) ----
 $sysProxy = Get-SystemProxy
@@ -155,10 +217,10 @@ if($candidates.Count -gt 0){
   }
 }
 
-# ---- 2) download (fail-fast: 10s connect timeout, retries, fresh target) ----
+# ---- 2) download (fail-fast: 15s connect timeout, retries, fresh target) ----
 function Invoke-Download($url,[string[]]$extra){
   if(Test-Path -LiteralPath $target){ Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
-  $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','10','--max-time','90','-o',$target)
+  $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','15','--max-time','90','-o',$target)
   if($extra){ $a += $extra }
   $a += $url
   & curl.exe @a
@@ -190,6 +252,7 @@ if($ok){
   Write-Host ''
   Write-Host 'ERROR: could not download Addons-Fetcher.cmd from any source.' -ForegroundColor Red
   Write-Host 'Check your network/proxy settings and run this script again.' -ForegroundColor Yellow
+  Restore-ConsoleMode
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
   exit 1
 }
@@ -197,12 +260,14 @@ if($ok){
 # ---- 3) validate + run ----
 if((Get-Item -LiteralPath $target).Length -le 1000){
   Write-Host 'ERROR: downloaded file is too small - aborting.' -ForegroundColor Red
+  Restore-ConsoleMode
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
   exit 1
 }
 $marker = '#PS' + 'START'
 if([IO.File]::ReadAllText($target, [Text.Encoding]::UTF8).IndexOf($marker) -lt 0){
   Write-Host 'ERROR: the downloaded file does not look like the fetch script.' -ForegroundColor Red
+  Restore-ConsoleMode
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
   exit 1
 }
@@ -211,5 +276,6 @@ Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 Write-Host ''
 Write-Host 'Addons-init: running Addons-Fetcher.cmd ...' -ForegroundColor Cyan
 Write-Host ''
+Restore-ConsoleMode
 & cmd /c ('"' + $target + '"')
 exit $LASTEXITCODE
