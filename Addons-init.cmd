@@ -6,7 +6,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v1.0.2
+#  Addons-init  v1.0.3
 #  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
 #  Addons-SoD/Addons-Fetcher repository into the current directory and
 #  runs it. The fetcher then deploys all addons into this directory.
@@ -25,7 +25,7 @@ $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptVersion = '1.0.2'
+$ScriptVersion = '1.0.3'
 $ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
 $Owner         = 'Addons-SoD'
 $Repo          = 'Addons-Fetcher'
@@ -274,7 +274,7 @@ if($remoteVer -and $remoteVer -ne $ScriptVersion){
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
   Write-Host '  Download it now: hold Ctrl and click the link below' -ForegroundColor Magenta
   Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
-  Write-Host '  (saved as init.cmd - rename it to Addons-init.cmd)' -ForegroundColor Magenta
+  Write-Host '  (saved as init.cmd - no rename needed, just run it)' -ForegroundColor Magenta
   Write-Host ''
 }
 
