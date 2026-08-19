@@ -52,6 +52,13 @@ function Truncate-Text([string]$s,[int]$maxLen){
   return $s
 }
 
+# Animated spinner character shown while waiting (probing / downloading).
+$script:SpinIdx = 0
+function Get-SpinChar{
+  $script:SpinIdx = ($script:SpinIdx + 1) % 4
+  return ('-','\','|','/')[$script:SpinIdx]
+}
+
 # Disable QuickEdit (clicking the console pauses the script in select mode)
 # and hide the cursor while running.
 function Init-ConsoleMode{
@@ -163,7 +170,12 @@ function Probe-Channels($candidates){
     $p = Start-CurlProc $a $outFile
     $procs += @{ Ch = $ch; Proc = $p; Out = $outFile }
   }
-  while(@($procs | Where-Object { -not $_.Proc.HasExited }).Count -gt 0){ Start-Sleep -Milliseconds 300 }
+  while(@($procs | Where-Object { -not $_.Proc.HasExited }).Count -gt 0){
+    Write-Host ("`r  " + (Get-SpinChar) + ' probing channels ...') -NoNewline
+    Start-Sleep -Milliseconds 300
+  }
+  Write-Host ("`r" + (' ' * $ConWidth)) -NoNewline
+  Write-Host ''
   Start-Sleep -Milliseconds 200
   $best = $null
   foreach($pr in $procs){
@@ -218,31 +230,39 @@ if($candidates.Count -gt 0){
 }
 
 # ---- 2) download (fail-fast: 15s connect timeout, retries, fresh target) ----
-function Invoke-Download($url,[string[]]$extra){
+# curl runs as a background process while the main thread shows a spinner.
+function Invoke-Download($url,[string[]]$extra,[string]$label){
   if(Test-Path -LiteralPath $target){ Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
   $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','15','--max-time','90','-o',$target)
   if($extra){ $a += $extra }
   $a += $url
-  & curl.exe @a
-  return ($LASTEXITCODE -eq 0)
+  $argLine = Get-CurlArgLine $a
+  $p = Start-Process -FilePath 'curl.exe' -ArgumentList $argLine -PassThru -WindowStyle Hidden
+  while(-not $p.HasExited){
+    Write-Host ("`r  " + (Get-SpinChar) + ' downloading ' + $label + ' ...') -NoNewline
+    Start-Sleep -Milliseconds 200
+  }
+  Write-Host ("`r" + (' ' * $ConWidth)) -NoNewline
+  Write-Host ''
+  return ($p.ExitCode -eq 0)
 }
 
 $ok = $false
 # 1) raw.githubusercontent.com through the fastest probed channel
-if($channel){ $ok = Invoke-Download $rawUrl $channel.Args }
+if($channel){ $ok = Invoke-Download $rawUrl $channel.Args 'Addons-Fetcher.cmd' }
 # 2) raw through plain DNS (no channel arguments)
-if(-not $ok){ $ok = Invoke-Download $rawUrl @() }
+if(-not $ok){ $ok = Invoke-Download $rawUrl @() 'Addons-Fetcher.cmd (plain)' }
 # 3) github.com raw redirect (proxy if available)
 if(-not $ok){
   Write-Host '  Falling back to github.com raw redirect ...' -ForegroundColor Gray
   $extra = @()
   if($sysProxy){ $extra = @('--proxy',$sysProxy) }
-  $ok = Invoke-Download $ghUrl $extra
+  $ok = Invoke-Download $ghUrl $extra 'Addons-Fetcher.cmd (github redirect)'
 }
 # 4) jsDelivr CDN mirror (plain direct - usually reachable even when GitHub is not)
 if(-not $ok){
   Write-Host '  Falling back to cdn.jsdelivr.net ...' -ForegroundColor Gray
-  $ok = Invoke-Download $jsUrl @()
+  $ok = Invoke-Download $jsUrl @() 'Addons-Fetcher.cmd (jsdelivr)'
 }
 
 if($ok){
