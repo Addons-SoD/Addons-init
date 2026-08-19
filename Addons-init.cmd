@@ -249,7 +249,7 @@ if(-not (Test-GameFolder)){
   Write-Host '  or its signature is not from Blizzard. You are probably' -ForegroundColor Yellow
   Write-Host '  NOT running this script from the game''s Interface folder.' -ForegroundColor Yellow
   Write-Host '  The addons will be downloaded next to this script. After' -ForegroundColor Yellow
-  Write-Host '  the download finishes, please manually copy the ''Addons''' -ForegroundColor Yellow
+  Write-Host '  the download finishes, please manually copy the ''AddOns''' -ForegroundColor Yellow
   Write-Host '  folder into your game''s Interface directory.' -ForegroundColor Yellow
   Write-Host ''
 }
