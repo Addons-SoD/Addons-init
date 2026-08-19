@@ -6,30 +6,33 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v3
+#  Addons-init  v1.0.0
 #  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
 #  Addons-SoD/Addons-Fetcher repository into the current directory and
 #  runs it. The fetcher then deploys all addons into this directory.
-#  v3 changes:
-#  * Console output is kept within 80 columns (long lines are truncated).
-#  * QuickEdit is disabled and the cursor is hidden while the script runs,
-#    so clicking the console window can no longer pause the script; the
-#    console is restored before exiting.
 #  Download sources are tried in order:
-#    1. raw.githubusercontent.com  (through the fastest probed channel)
-#    2. github.com/.../raw/... redirect (proxy if available)
-#    3. cdn.jsdelivr.net (jsDelivr CDN mirror, plain direct)
+#    1. api.github.com (fast Azure route, raw media type)
+#    2. raw.githubusercontent.com (through the fastest probed channel)
+#    3. github.com/.../raw/... redirect (proxy if available)
+#    4. cdn.jsdelivr.net (jsDelivr CDN mirror, plain direct)
+#  Version check: before fetching, the script compares its own version
+#  ($ScriptVersion) with the latest one in the Addons-SoD/Addons-init
+#  repository and shows a magenta notice when a newer version is available.
 # ============================================================================
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptDir   = ($env:INIT_DIR).TrimEnd('\')
-$Owner       = 'Addons-SoD'
-$Repo        = 'Addons-Fetcher'
-$Branch      = 'main'
-$FetcherName = 'Addons-Fetcher.cmd'
-$RawHost     = 'raw.githubusercontent.com'
+$ScriptVersion = '1.0.1'
+$ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
+$Owner         = 'Addons-SoD'
+$Repo          = 'Addons-Fetcher'
+$Branch        = 'main'
+$FetcherName   = 'Addons-Fetcher.cmd'
+$RawHost       = 'raw.githubusercontent.com'
+$InitRepo      = 'Addons-init'
+$InitDlUrl     = 'https://github.com/Addons-SoD/Addons-init/raw/main/Addons-init.cmd'
+$VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init/contents/Addons-init.cmd'
 
 $rawUrl = 'https://raw.githubusercontent.com/' + $Owner + '/' + $Repo + '/' + $Branch + '/' + $FetcherName
 $ghUrl  = 'https://github.com/' + $Owner + '/' + $Repo + '/raw/' + $Branch + '/' + $FetcherName
@@ -153,6 +156,23 @@ function Invoke-Download($url,[string[]]$extra,[string]$label,[string[]]$headers
   return ($p.ExitCode -eq 0)
 }
 
+# Fetch the version of the remote Addons-init.cmd (via api.github.com, the
+# fast Azure route) and return it, or $null when the check cannot run.
+function Get-RemoteVersion{
+  try{
+    $tmp = Join-Path $work 'remote-init.cmd'
+    $a = @('-s','-L','--fail','--retry','2','--retry-delay','1','--connect-timeout','10','--max-time','30','-H','Accept: application/vnd.github.raw','-o',$tmp,$VersionCheckUrl)
+    $p = Start-Process -FilePath 'curl.exe' -ArgumentList (Get-CurlArgLine $a) -PassThru -WindowStyle Hidden
+    $null = $p.WaitForExit(40000)
+    if($p.ExitCode -eq 0 -and (Test-Path -LiteralPath $tmp)){
+      $txt = [IO.File]::ReadAllText($tmp, [Text.Encoding]::UTF8)
+      $mv = [regex]::Match($txt, '\$ScriptVersion\s*=\s*''([^'']+)''')
+      if($mv.Success){ return $mv.Groups[1].Value }
+    }
+  }catch{}
+  return $null
+}
+
 function Get-SystemProxy{
   try{
     $ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
@@ -240,6 +260,18 @@ Write-Host ''
 Write-Host $HLine -ForegroundColor Cyan
 Write-Host '  Addons-init: fetching Addons-Fetcher.cmd' -ForegroundColor Cyan
 Write-Host $HLine -ForegroundColor Cyan
+
+# Version check: a newer Addons-init on the repository gets a magenta
+# notice with a clickable download URL (Ctrl+Click in Windows Terminal).
+$remoteVer = Get-RemoteVersion
+if($remoteVer -and $remoteVer -ne $ScriptVersion){
+  Write-Host ''
+  Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
+  Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
+  Write-Host '  Download the new version here:' -ForegroundColor Magenta
+  Write-Host ('  ' + $InitDlUrl) -ForegroundColor Magenta
+  Write-Host ''
+}
 
 # Warn (in English) when the script does not run from the game's Interface
 # folder: the addons will be deployed next to this script instead.
