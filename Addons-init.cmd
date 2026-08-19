@@ -264,16 +264,17 @@ Write-Host $HLine -ForegroundColor Cyan
 
 # Version check: a newer Addons-init on the repository gets a magenta
 # notice with a direct-download URL (GitHub Release asset - Ctrl+Click in
-# Windows Terminal downloads the file straight away).
+# Windows Terminal downloads the file straight away). The URL stays within
+# 80 columns via the 'latest' alias and the short asset name 'init.cmd'.
 $remoteVer = Get-RemoteVersion
 if($remoteVer -and $remoteVer -ne $ScriptVersion){
-  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/download/v' + $remoteVer + '/Addons-init.cmd'
+  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/latest/download/init.cmd'
   Write-Host ''
   Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
   Write-Host '  Download it now: hold Ctrl and click the link below' -ForegroundColor Magenta
-  Write-Host '  (or copy it into your browser):' -ForegroundColor Magenta
   Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
+  Write-Host '  (saved as init.cmd - rename it to Addons-init.cmd)' -ForegroundColor Magenta
   Write-Host ''
 }
 
