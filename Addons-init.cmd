@@ -132,6 +132,27 @@ function Test-GameFolder{
   return $false
 }
 
+# Download with a fail-fast curl (15s connect timeout, retries, fresh
+# target); curl runs as a background process while the main thread shows
+# a spinner. Optional extra curl args and extra headers.
+function Invoke-Download($url,[string[]]$extra,[string]$label,[string[]]$headers){
+  if(Test-Path -LiteralPath $target){ Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
+  $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','15','--max-time','90')
+  if($headers){ $a += $headers }
+  $a += @('-o',$target)
+  if($extra){ $a += $extra }
+  $a += $url
+  $argLine = Get-CurlArgLine $a
+  $p = Start-Process -FilePath 'curl.exe' -ArgumentList $argLine -PassThru -WindowStyle Hidden
+  while(-not $p.HasExited){
+    Write-Host ("`r  " + (Get-SpinChar) + ' downloading ' + $label + ' ...') -NoNewline
+    Start-Sleep -Milliseconds 200
+  }
+  Write-Host ("`r" + (' ' * $ConWidth)) -NoNewline
+  Write-Host ''
+  return ($p.ExitCode -eq 0)
+}
+
 function Get-SystemProxy{
   try{
     $ie = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction Stop
@@ -233,66 +254,60 @@ if(-not (Test-GameFolder)){
   Write-Host ''
 }
 
-# ---- 1) pick the fastest channel (proxy vs direct multi-IP) ----
+# ---- download: try the fast api.github.com route first ----
+# api.github.com (Azure) is on the same fast route as codeload.github.com,
+# while raw.githubusercontent.com (Fastly) is often blocked/throttled - so
+# api is tried before any probing, and probing only runs when api fails.
 $sysProxy = Get-SystemProxy
 Write-Host ('  System proxy : ' + $(if($sysProxy){ $sysProxy } else { '(none - using direct)' }))
-$channel = $null
-$candidates = @()
-$idx = 0
-if($sysProxy){ $candidates += @{ Id='PROXY'; Args=@('--proxy',$sysProxy); Label='proxy ' + $sysProxy } }
-foreach($ip in (Get-RawIps)){
-  $idx++
-  $candidates += @{ Id=('IP'+$idx); Args=@('--resolve',($RawHost + ':443:' + $ip)); Label=$ip }
-}
-if($candidates.Count -gt 0){
-  Write-Host '  Probing channels (8s each, parallel):' -ForegroundColor Gray
-  $channel = Probe-Channels $candidates
-  if($channel){
-    if($channel.Id -eq 'PROXY'){
-      Write-Host ('  -> Using system proxy: ' + $sysProxy + ' (' + ('{0:N0}' -f $channel.Speed) + ' B/s)') -ForegroundColor Green
-    } else {
-      $ip = ($channel.Args[1] -split ':')[-1]
-      Write-Host ('  -> Using direct IP: ' + $ip + ' (' + ('{0:N0}' -f $channel.Speed) + ' B/s)') -ForegroundColor Green
-    }
-  } else {
-    Write-Host '  All channels failed - using the default direct connection.' -ForegroundColor Yellow
-  }
-}
-
-# ---- 2) download (fail-fast: 15s connect timeout, retries, fresh target) ----
-# curl runs as a background process while the main thread shows a spinner.
-function Invoke-Download($url,[string[]]$extra,[string]$label){
-  if(Test-Path -LiteralPath $target){ Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
-  $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','15','--max-time','90','-o',$target)
-  if($extra){ $a += $extra }
-  $a += $url
-  $argLine = Get-CurlArgLine $a
-  $p = Start-Process -FilePath 'curl.exe' -ArgumentList $argLine -PassThru -WindowStyle Hidden
-  while(-not $p.HasExited){
-    Write-Host ("`r  " + (Get-SpinChar) + ' downloading ' + $label + ' ...') -NoNewline
-    Start-Sleep -Milliseconds 200
-  }
-  Write-Host ("`r" + (' ' * $ConWidth)) -NoNewline
-  Write-Host ''
-  return ($p.ExitCode -eq 0)
-}
-
 $ok = $false
-# 1) raw.githubusercontent.com through the fastest probed channel
-if($channel){ $ok = Invoke-Download $rawUrl $channel.Args 'Addons-Fetcher.cmd' }
-# 2) raw through plain DNS (no channel arguments)
-if(-not $ok){ $ok = Invoke-Download $rawUrl @() 'Addons-Fetcher.cmd (plain)' }
-# 3) github.com raw redirect (proxy if available)
-if(-not $ok){
-  Write-Host '  Falling back to github.com raw redirect ...' -ForegroundColor Gray
-  $extra = @()
-  if($sysProxy){ $extra = @('--proxy',$sysProxy) }
-  $ok = Invoke-Download $ghUrl $extra 'Addons-Fetcher.cmd (github redirect)'
+$apiUrl  = 'https://api.github.com/repos/' + $Owner + '/' + $Repo + '/contents/' + $FetcherName
+$apiExtra = @()
+if($sysProxy){ $apiExtra = @('--proxy',$sysProxy) }
+if(Invoke-Download $apiUrl $apiExtra 'Addons-Fetcher.cmd (api.github.com)' @('-H','Accept: application/vnd.github.raw')){
+  $ok = $true
 }
-# 4) jsDelivr CDN mirror (plain direct - usually reachable even when GitHub is not)
+
 if(-not $ok){
-  Write-Host '  Falling back to cdn.jsdelivr.net ...' -ForegroundColor Gray
-  $ok = Invoke-Download $jsUrl @() 'Addons-Fetcher.cmd (jsdelivr)'
+  # ---- channel probing (proxy vs direct multi-IP) ----
+  $channel = $null
+  $candidates = @()
+  $idx = 0
+  if($sysProxy){ $candidates += @{ Id='PROXY'; Args=@('--proxy',$sysProxy); Label='proxy ' + $sysProxy } }
+  foreach($ip in (Get-RawIps)){
+    $idx++
+    $candidates += @{ Id=('IP'+$idx); Args=@('--resolve',($RawHost + ':443:' + $ip)); Label=$ip }
+  }
+  if($candidates.Count -gt 0){
+    Write-Host '  Probing channels (8s each, parallel):' -ForegroundColor Gray
+    $channel = Probe-Channels $candidates
+    if($channel){
+      if($channel.Id -eq 'PROXY'){
+        Write-Host ('  -> Using system proxy: ' + $sysProxy + ' (' + ('{0:N0}' -f $channel.Speed) + ' B/s)') -ForegroundColor Green
+      } else {
+        $ip = ($channel.Args[1] -split ':')[-1]
+        Write-Host ('  -> Using direct IP: ' + $ip + ' (' + ('{0:N0}' -f $channel.Speed) + ' B/s)') -ForegroundColor Green
+      }
+    } else {
+      Write-Host '  All channels failed - using the default direct connection.' -ForegroundColor Yellow
+    }
+  }
+  # 1) raw.githubusercontent.com through the fastest probed channel
+  if($channel){ $ok = Invoke-Download $rawUrl $channel.Args 'Addons-Fetcher.cmd' }
+  # 2) raw through plain DNS (no channel arguments)
+  if(-not $ok){ $ok = Invoke-Download $rawUrl @() 'Addons-Fetcher.cmd (plain)' }
+  # 3) github.com raw redirect (proxy if available)
+  if(-not $ok){
+    Write-Host '  Falling back to github.com raw redirect ...' -ForegroundColor Gray
+    $extra = @()
+    if($sysProxy){ $extra = @('--proxy',$sysProxy) }
+    $ok = Invoke-Download $ghUrl $extra 'Addons-Fetcher.cmd (github redirect)'
+  }
+  # 4) jsDelivr CDN mirror (plain direct - usually reachable even when GitHub is not)
+  if(-not $ok){
+    Write-Host '  Falling back to cdn.jsdelivr.net ...' -ForegroundColor Gray
+    $ok = Invoke-Download $jsUrl @() 'Addons-Fetcher.cmd (jsdelivr)'
+  }
 }
 
 if($ok){
