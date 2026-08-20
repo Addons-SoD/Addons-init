@@ -8,3 +8,6 @@ Addons-Fetcher.cmd
 
 # Runtime channel-selection cache created next to Addons-Fetcher.cmd.
 .addons-fetcher-cache.json
+
+# Runtime incremental-update state created next to Addons-Fetcher.cmd.
+.addons-fetcher-state.json
