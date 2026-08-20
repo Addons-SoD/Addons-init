@@ -139,11 +139,14 @@ function Test-GameFolder{
 # Download with a fail-fast curl (15s connect timeout, retries, fresh
 # target); curl runs as a background process while the main thread shows
 # a spinner. Optional extra curl args and extra headers.
+# The download goes to a '.new' temp file so a failed update never destroys
+# the existing fetcher.
 function Invoke-Download($url,[string[]]$extra,[string]$label,[string[]]$headers){
-  if(Test-Path -LiteralPath $target){ Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue }
+  $dlTmp = Join-Path $ScriptDir ($FetcherName + '.new')
+  if(Test-Path -LiteralPath $dlTmp){ Remove-Item -LiteralPath $dlTmp -Force -ErrorAction SilentlyContinue }
   $a = @('-s','-L','--fail','--retry','3','--retry-delay','1','--connect-timeout','15','--max-time','90')
   if($headers){ $a += $headers }
-  $a += @('-o',$target)
+  $a += @('-o',$dlTmp)
   if($extra){ $a += $extra }
   $a += $url
   $argLine = Get-CurlArgLine $a
@@ -346,28 +349,28 @@ if(-not $ok){
   }
 }
 
-if($ok){
-  $len = (Get-Item -LiteralPath $target).Length
-  Write-Host ('Downloaded OK (' + $len + ' bytes)') -ForegroundColor Green
-} else {
+$dlTmp = Join-Path $ScriptDir ($FetcherName + '.new')
+$updated = $false
+if($ok -and (Test-Path -LiteralPath $dlTmp)){
+  $len = (Get-Item -LiteralPath $dlTmp).Length
+  if($len -gt 1000){
+    $marker = '#PS' + 'START'
+    if([IO.File]::ReadAllText($dlTmp, [Text.Encoding]::UTF8).IndexOf($marker) -ge 0){
+      # Validate + atomically replace the existing fetcher.
+      Remove-Item -LiteralPath $target -Force -ErrorAction SilentlyContinue
+      Move-Item -LiteralPath $dlTmp -Destination $target -Force
+      $updated = $true
+      Write-Host ('Updated Addons-Fetcher.cmd OK (' + $len + ' bytes)') -ForegroundColor Green
+    }
+  }
+}
+if(-not $updated){
+  # Strict: without a freshly downloaded fetcher the update cannot continue.
+  # Fail and let the user retry when the network is back.
+  if(Test-Path -LiteralPath $dlTmp){ Remove-Item -LiteralPath $dlTmp -Force -ErrorAction SilentlyContinue }
   Write-Host ''
   Write-Host 'ERROR: could not download Addons-Fetcher.cmd from any source.' -ForegroundColor Red
   Write-Host 'Check your network/proxy settings and run this script again.' -ForegroundColor Yellow
-  Restore-ConsoleMode
-  Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
-  exit 1
-}
-
-# ---- 3) validate + run ----
-if((Get-Item -LiteralPath $target).Length -le 1000){
-  Write-Host 'ERROR: downloaded file is too small - aborting.' -ForegroundColor Red
-  Restore-ConsoleMode
-  Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
-  exit 1
-}
-$marker = '#PS' + 'START'
-if([IO.File]::ReadAllText($target, [Text.Encoding]::UTF8).IndexOf($marker) -lt 0){
-  Write-Host 'ERROR: the downloaded file does not look like the fetch script.' -ForegroundColor Red
   Restore-ConsoleMode
   Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
   exit 1
