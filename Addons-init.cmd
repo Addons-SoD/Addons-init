@@ -6,18 +6,19 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init (WoW Forever)  v2.0.0
+#  Addons-init-Forever  v2.1.0
 #  Bootstrap script for World of Warcraft: Forever ("Warcraft Forever",
-#  client folder '_forever_', product flavor 'wowf').
+#  client folder '_forever_', product flavor 'wowf', interface 16001).
 #
-#  It downloads Addons-Fetcher.cmd from the 'wow-forever' branch of
-#  Addons-SoD/Addons-Fetcher into the current directory and runs it. The
-#  fetcher then deploys the Forever addon set into this directory
-#  (expected location: ...\_forever_\Interface).
+#  It downloads Addons-Fetcher.cmd from Addons-SoD/Addons-Fetcher-Forever into
+#  the current directory and runs it. The fetcher then deploys the Forever
+#  addon set into this directory (expected location: ...\_forever_\Interface).
 #
-#  Difference to the Classic Era version: the game check looks for the
-#  Forever client (Wow.exe + '.flavor.info' == wowf), and the fetcher is
-#  pulled from the wow-forever branch instead of main.
+#  Difference to the Classic Era script: this lives in its own "-Forever"
+#  repository (mirroring the "-SoD" naming), the game check looks for the
+#  Forever client (Wow.exe + '.flavor.info' == wowf), and the fetcher comes
+#  from Addons-Fetcher-Forever. The Classic Era repositories are never
+#  referenced by this script.
 #
 #  Download sources are tried in order:
 #    1. api.github.com (fast Azure route, raw media type)
@@ -25,25 +26,27 @@ exit /b %ERRORLEVEL%
 #    3. github.com/.../raw/... redirect (proxy if available)
 #    4. cdn.jsdelivr.net (jsDelivr CDN mirror, plain direct)
 #  Version check: before fetching, the script compares its own version
-#  ($ScriptVersion) with the latest one in the wow-forever branch of
-#  Addons-SoD/Addons-init and shows a magenta notice when a newer version
-#  is available. The notice points to the matching GitHub Release asset (a
-#  browser click downloads the file directly, no copy-paste needed).
+#  ($ScriptVersion) with the latest one in Addons-SoD/Addons-init-Forever and
+#  shows a magenta notice when a newer version is available. The notice
+#  points to the raw file of the same repository/branch (a browser click
+#  downloads it directly, no copy-paste needed). It never points at the
+#  Classic Era repository.
 # ============================================================================
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptVersion = '2.0.0'
+$ScriptVersion = '2.1.0'
 $ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
 $Owner         = 'Addons-SoD'
-$Repo          = 'Addons-Fetcher'
-# WoW Forever port: always pull the fitted fetcher from the wow-forever branch.
-$Branch        = 'wow-forever'
+$Repo          = 'Addons-Fetcher-Forever'
+# The Forever port lives in its own repositories ('-Forever' suffix, mirroring
+# the '-SoD' naming), so the Classic Era / SoD repositories stay untouched.
+$Branch        = 'main'
 $FetcherName   = 'Addons-Fetcher.cmd'
 $RawHost       = 'raw.githubusercontent.com'
-$InitRepo      = 'Addons-init'
-$VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init/contents/Addons-init.cmd?ref=' + $Branch
+$InitRepo      = 'Addons-init-Forever'
+$VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init-Forever/contents/Addons-init.cmd?ref=' + $Branch
 
 $rawUrl = 'https://raw.githubusercontent.com/' + $Owner + '/' + $Repo + '/' + $Branch + '/' + $FetcherName
 $ghUrl  = 'https://github.com/' + $Owner + '/' + $Repo + '/raw/' + $Branch + '/' + $FetcherName
@@ -281,15 +284,15 @@ Write-Host $HLine -ForegroundColor Cyan
 Write-Host '  Addons-init: fetching Addons-Fetcher.cmd' -ForegroundColor Cyan
 Write-Host $HLine -ForegroundColor Cyan
 
-# Version check: a newer Addons-init on the repository gets a magenta
-# notice with a direct-download URL (GitHub Release asset - Ctrl+Click in
-# Windows Terminal downloads the file straight away). The fixed 'v1' tag and
-# the full asset name 'Addons-init.cmd' keep the URL within 80 columns.
+# Version check: a newer Addons-init-Forever gets a magenta notice with the
+# raw URL of this repository/branch (Ctrl+Click in Windows Terminal downloads
+# the file straight away). The URL deliberately stays inside the -Forever
+# repository so it can never pull the Classic Era script back in.
 $remoteVer = Get-RemoteVersion
 if($remoteVer -and $remoteVer -ne $ScriptVersion){
-  $dlUrl = 'https://github.com/Addons-SoD/Addons-init/releases/download/v1/Addons-init.cmd'
+  $dlUrl = 'https://github.com/' + $Owner + '/' + $InitRepo + '/raw/' + $Branch + '/' + 'Addons-init.cmd'
   Write-Host ''
-  Write-Host ('  A new version of Addons-init (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
+  Write-Host ('  A new version of Addons-init-Forever (v' + $remoteVer + ') is available.') -ForegroundColor Magenta
   Write-Host ('  Current version: v' + $ScriptVersion) -ForegroundColor Magenta
   Write-Host '  Download it now: hold Ctrl and click the link below' -ForegroundColor Magenta
   Write-Host ('  ' + $dlUrl) -ForegroundColor Magenta
