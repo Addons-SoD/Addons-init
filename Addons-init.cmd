@@ -1,39 +1,49 @@
 @echo off
-title Addons-init - Bootstrap for Addons-Fetcher
+title Addons-init (WoW Forever) - Bootstrap for Addons-Fetcher
 chcp 65001 >nul
 cd /d "%~dp0"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$env:INIT_SELF='%~f0'; $env:INIT_DIR='%~dp0'; $c=[IO.File]::ReadAllText('%~f0',[Text.Encoding]::UTF8); $m=([char]10).ToString()+'#PS'+'START'; $i=$c.IndexOf($m); if($i -lt 0){ Write-Host 'Script marker not found.'; exit 1 }; Invoke-Expression ($c.Substring($i+$m.Length))"
 exit /b %ERRORLEVEL%
 #PSSTART
 # ============================================================================
-#  Addons-init  v1.0.4
-#  Bootstrap script: downloads the latest Addons-Fetcher.cmd from the
-#  Addons-SoD/Addons-Fetcher repository into the current directory and
-#  runs it. The fetcher then deploys all addons into this directory.
+#  Addons-init (WoW Forever)  v2.0.0
+#  Bootstrap script for World of Warcraft: Forever ("Warcraft Forever",
+#  client folder '_forever_', product flavor 'wowf').
+#
+#  It downloads Addons-Fetcher.cmd from the 'wow-forever' branch of
+#  Addons-SoD/Addons-Fetcher into the current directory and runs it. The
+#  fetcher then deploys the Forever addon set into this directory
+#  (expected location: ...\_forever_\Interface).
+#
+#  Difference to the Classic Era version: the game check looks for the
+#  Forever client (Wow.exe + '.flavor.info' == wowf), and the fetcher is
+#  pulled from the wow-forever branch instead of main.
+#
 #  Download sources are tried in order:
 #    1. api.github.com (fast Azure route, raw media type)
 #    2. raw.githubusercontent.com (through the fastest probed channel)
 #    3. github.com/.../raw/... redirect (proxy if available)
 #    4. cdn.jsdelivr.net (jsDelivr CDN mirror, plain direct)
 #  Version check: before fetching, the script compares its own version
-#  ($ScriptVersion) with the latest one in the Addons-SoD/Addons-init
-#  repository and shows a magenta notice when a newer version is available.
-#  The notice points to the matching GitHub Release asset (a browser click
-#  downloads the file directly, no copy-paste needed).
+#  ($ScriptVersion) with the latest one in the wow-forever branch of
+#  Addons-SoD/Addons-init and shows a magenta notice when a newer version
+#  is available. The notice points to the matching GitHub Release asset (a
+#  browser click downloads the file directly, no copy-paste needed).
 # ============================================================================
 $ErrorActionPreference = 'Stop'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 try { [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 } catch {}
 
-$ScriptVersion = '1.0.4'
+$ScriptVersion = '2.0.0'
 $ScriptDir     = ($env:INIT_DIR).TrimEnd('\')
 $Owner         = 'Addons-SoD'
 $Repo          = 'Addons-Fetcher'
-$Branch        = 'main'
+# WoW Forever port: always pull the fitted fetcher from the wow-forever branch.
+$Branch        = 'wow-forever'
 $FetcherName   = 'Addons-Fetcher.cmd'
 $RawHost       = 'raw.githubusercontent.com'
 $InitRepo      = 'Addons-init'
-$VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init/contents/Addons-init.cmd'
+$VersionCheckUrl = 'https://api.github.com/repos/Addons-SoD/Addons-init/contents/Addons-init.cmd?ref=' + $Branch
 
 $rawUrl = 'https://raw.githubusercontent.com/' + $Owner + '/' + $Repo + '/' + $Branch + '/' + $FetcherName
 $ghUrl  = 'https://github.com/' + $Owner + '/' + $Repo + '/raw/' + $Branch + '/' + $FetcherName
@@ -119,12 +129,18 @@ function Restore-ConsoleMode{
   }catch{}
 }
 
-# True when the parent directory looks like the game folder: WowClassic.exe
-# exists next to it AND its Authenticode signature comes from Blizzard.
+# True when the parent directory looks like the WoW Forever game folder:
+#   - '.flavor.info' next to it reports the product flavor 'wowf', OR
+#   - Wow.exe exists next to it AND its Authenticode signature comes from
+#     Blizzard (fallback when '.flavor.info' is missing).
 function Test-GameFolder{
   try{
     $parent = Split-Path -Parent $ScriptDir
-    $exe = Join-Path $parent 'WowClassic.exe'
+    $flavor = Join-Path $parent '.flavor.info'
+    if(Test-Path -LiteralPath $flavor){
+      if(([IO.File]::ReadAllText($flavor)) -match 'wowf'){ return $true }
+    }
+    $exe = Join-Path $parent 'Wow.exe'
     if(Test-Path -LiteralPath $exe){
       $sig = Get-AuthenticodeSignature -LiteralPath $exe
       if($sig.Status -eq 'Valid' -and $null -ne $sig.SignerCertificate){
@@ -280,16 +296,16 @@ if($remoteVer -and $remoteVer -ne $ScriptVersion){
   Write-Host ''
 }
 
-# Warn (in English) when the script does not run from the game's Interface
-# folder: the addons will be deployed next to this script instead.
+# Warn (in English) when the script does not run from the Forever client's
+# Interface folder: the addons will be deployed next to this script instead.
 if(-not (Test-GameFolder)){
   Write-Host ''
-  Write-Host '  WARNING: WowClassic.exe was not found in the parent folder,' -ForegroundColor Yellow
-  Write-Host '  or its signature is not from Blizzard. You are probably' -ForegroundColor Yellow
-  Write-Host '  NOT running this script from the game''s Interface folder.' -ForegroundColor Yellow
-  Write-Host '  The addons will be downloaded next to this script. After' -ForegroundColor Yellow
-  Write-Host '  the download finishes, please manually copy the ''AddOns''' -ForegroundColor Yellow
-  Write-Host '  folder into your game''s Interface directory.' -ForegroundColor Yellow
+  Write-Host '  WARNING: this does not look like the WoW Forever client folder' -ForegroundColor Yellow
+  Write-Host '  (_forever_, product flavor wowf, Wow.exe next to Interface).' -ForegroundColor Yellow
+  Write-Host '  You are probably NOT running this script from the game''s' -ForegroundColor Yellow
+  Write-Host '  Interface folder. The addons will be downloaded next to this' -ForegroundColor Yellow
+  Write-Host '  script. After the download finishes, please manually copy the' -ForegroundColor Yellow
+  Write-Host '  ''AddOns'' folder into your game''s Interface directory.' -ForegroundColor Yellow
   Write-Host ''
 }
 

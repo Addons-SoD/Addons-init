@@ -1,16 +1,28 @@
-# Addons-init
+# Addons-init (WoW Forever)
 
-Bootstrap script for [Addons-Fetcher](https://github.com/Addons-SoD/Addons-Fetcher).
+Bootstrap script for [Addons-Fetcher](https://github.com/Addons-SoD/Addons-Fetcher),
+branch **`wow-forever`**.
 
-It downloads the latest `Addons-Fetcher.cmd` from the
-[Addons-SoD/Addons-Fetcher](https://github.com/Addons-SoD/Addons-Fetcher)
-repository into the current directory and runs it, so a completely empty
-`Interface` folder can be populated with a single double-click.
+It downloads `Addons-Fetcher.cmd` from the `wow-forever` branch of the
+Addons-Fetcher repository into the current directory and runs it, so a
+completely empty `Interface` folder can be populated with a single
+double-click.
+
+## Target game
+
+**World of Warcraft: Forever** ("魔兽世界：无限"), client folder `_forever_`,
+product flavor `wowf`, addon interface **16001**. Forever runs the modern
+Mainline UI family (the vast majority of the 12.1.5 addon API), **not**
+Classic Era.
+
+The script verifies the target by reading `.flavor.info` (`wowf`) next to the
+`Interface` folder, with an Authenticode signature check of `Wow.exe` as
+fallback.
 
 ## Usage
 
-1. Copy `Addons-init.cmd` into your `Interface` folder:
-   `<WoW install dir>\_classic_era_\Interface`
+1. Copy `Addons-init.cmd` into your Forever client's `Interface` folder:
+   `<WoW install dir>\_forever_\Interface`
 2. Run it.
 3. The fetcher is downloaded next to this script and started automatically;
    all addons are deployed into the `AddOns` subfolder
@@ -18,9 +30,10 @@ repository into the current directory and runs it, so a completely empty
 
 Download sources are tried in this order:
 
-1. `raw.githubusercontent.com`
-2. `github.com/.../raw/...` redirect
-3. `cdn.jsdelivr.net` (jsDelivr CDN mirror)
+1. `api.github.com`
+2. `raw.githubusercontent.com` (through the fastest probed channel)
+3. `github.com/.../raw/...` redirect
+4. `cdn.jsdelivr.net` (jsDelivr CDN mirror)
 
 ## Smart downloads (v2)
 
@@ -34,6 +47,13 @@ way the fetcher does:
   automatically; otherwise several `raw.githubusercontent.com` IPs (system
   DNS + AliDNS) are probed in parallel and the fastest reachable one is
   used (`--resolve`). A dead default DNS node no longer blocks the download.
+
+## Changes in the wow-forever branch
+
+- Fetcher is pulled from `wow-forever` instead of `main`.
+- Game check targets the Forever client (`Wow.exe`, `.flavor.info` = `wowf`).
+- Version notice reads the `wow-forever` version of this script.
+- Wording and README updated for Forever.
 
 ## Requirements
 
