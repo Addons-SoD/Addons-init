@@ -316,7 +316,7 @@ if(-not (Test-GameFolder)){
 $sysProxy = Get-SystemProxy
 Write-Host ('  System proxy : ' + $(if($sysProxy){ $sysProxy } else { '(none - using direct)' }))
 $ok = $false
-$apiUrl  = 'https://api.github.com/repos/' + $Owner + '/' + $Repo + '/contents/' + $FetcherName
+$apiUrl  = 'https://api.github.com/repos/' + $Owner + '/' + $Repo + '/contents/' + $FetcherName + '?ref=' + $Branch
 $apiExtra = @()
 if($sysProxy){ $apiExtra = @('--proxy',$sysProxy) }
 if(Invoke-Download $apiUrl $apiExtra 'Addons-Fetcher.cmd (api.github.com)' @('-H','Accept: application/vnd.github.raw')){
